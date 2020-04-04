@@ -45,3 +45,35 @@
     - Spy : 호출된 내역을 기록한다. 기록한 내용은 테스트 결과를 검증할 때 사용한다. Stub이기도 하다.
     - Mock : 기대한대로 상호작용하는지 행위를 검증한다. 기대한대로 동작하지 않으면 익셉션을 발생할 수 있다. Stub이자 Spy이기도 하다.
     
+- Mockito : 모의 객체 생성, 검증, 스텁을 지원하는 프레임워크
+    - 모의 객체 생성
+        ```
+        GameNumGen genMock = Mockito.mock(GameNumGen.class);
+        ```
+    - 스텁 설정
+        ```
+        BDDMockito.given(genMock.generate(null)).willReturn("123");
+        ```
+    - 인자 매칭
+        ```
+        BDDMockito.given(genMock.generate(ArgumentMatchers.any())).willReturn("123");
+        ```
+        주의사항 : 인자가 여러개인 경우 일부만 ArgumentMatcher를 사용할 수는 없다. 임의의 값과 일치하는 인자와 정확하게 일치하는 인자를 함께 사용하고 싶으면 `ArgumentMatchers.eq()`을 사용한다. 
+    - 행위 검증
+        ```
+        BDDMockito.then(genMock).should().generate(null);
+        ```
+    - 인자 캡쳐
+        ```
+        ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
+        BDDMockito.then(mockList).should().add(captor.capture());
+        ```
+    - 어노테이션 사용  
+        `mockito-junit-jupiter` 의존 추가
+        ```
+        @ExtendWith(MockitoExtension.class)
+        public class Junit5ExtensionTest {
+            @Mock
+            private GameNumGen genMock;
+        }
+        ```
