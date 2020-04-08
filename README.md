@@ -106,3 +106,111 @@
 - WireMock을 사용하여 외부 API 서버를 대체할 수 있다. WireMockServer를 시작하면 실제 HTTP 서버가 실행된다.
 
 - 스프링 내장 서버를 구동하여 어플리케이션을 실행하고 TestRestTemplate을 이용해서 HTTP 요청을 전송해 API를 테스트할 수 있다.
+
+- 변수나 필드를 사용해서 기댓값을 표현하지 않는다.
+
+- 한 테스트 메서드에서 한 기능만 검증한다.
+
+- 정확하게 일치하는 값으로 모의 객체를 설정하지 않는다.
+    ```
+    BDDMockito.given(mockPasswordChecker.checkPasswordWeak("pw"))
+        .willReturn(true);
+  
+    assertThrows(WeakPasswordException.class, () -> {
+        userRegister.register("id", "pw", "email");
+    });
+    ```
+  이 테스트는 userRegister.register("id", "pw", "email"); 를 userRegister.register("id", "pwa", "email");로 바꾸면 실패하여 의도와 다르게 동작한다. 
+    ```
+    BDDMockito.given(mockPasswordChecker.checkPasswordWeak(Mockito.anyString()))
+          .willReturn(true);
+    ```
+  위처럼 바꾸면 어떤 문자열을 인자로 전달하더라도 테스트는 깨지지 않고 약한 암호인 경우에 대한 테스트를 수행한다.
+  
+- 불필요한 구현 검증을 하지 않는다. 내부 구현을 검증하면 구현을 조금만 변경해도 테스트가 깨질 수 있다. 내부 구현보다 실행 결과를 검증해야 한다.
+
+- 상황 구성 코드를 @BeforeEach 셋업 코드에 위치시키지 않는다. 테스트 메서드가 자체적으로 테스트 하려는 상황을 기술하고 있어야 한다.
+
+- 통합 테스트에서 데이터 공유를 주의한다. @Sql을 사용해서 DB 데이터 초기화 쿼리를 실행할 수 있다.
+    ```
+    @SpringBootTest
+    @Sql("classpath:init-data.sql")
+    public class Test {}
+    ``` 
+  
+- 통합 테스트의 상황 설정을 위해 보조 클래스를 사용할 수 있다.
+    ```
+    // 보조클래스에서 상황 구성을 위한 회원 데이터를 생성하도록 하여 insert 중복 코드를 없앤다.
+    public class UserGivenHelper {
+        private EntityManager em;
+  
+        public UserGivenHelper(EntityManager em) {
+            this.em = em;
+        }
+  
+        public void givenUser(String id, String pw, String email) {
+            em.createNativeQuery("INSERT INTO person (id, pw, email) VALUES (:id, :pw, :email)")
+                    .setParameter("id", id)
+                    .setParameter("pw", pw)
+                    .setParameter("email", email)
+                    .executeUpdate();
+        }
+    }
+    ```
+    ```
+    @SpringBootTest
+    public class Test {
+  
+        @Autowired
+        private EntityManager em;
+        private UserGivenHelper;
+        private UserRegister register;
+  
+        @BeforeEach
+        void setUp() {
+            given = new UserGivenHelper(em);
+            register = new UserRegister();
+        }
+        
+        @Test
+        void dupId() {
+            given.givenUser("id", "pw", "email");
+  
+            assertThrows(DupIdException.class,
+                () -> register.register("id", "pw2", "email2")
+            );
+        }
+    }
+    ```
+  
+- 실행 환경이 달라서 테스트가 실패하지 말아야 한다.
+    ```
+    public class Test {
+        @Test
+        void export() {
+            // 실행 환경에 알맞는 임시 폴더 경로를 구한다.
+            String folder = System.getProperty("java.io.tmpdir");
+            Exporter expoter = new Exporter(folder);
+            exporter.export("file.txt");
+  
+            Path path = Paths.get(folder, "file.txt");
+            assertTrue(Files.exists(path));
+        }
+    }
+    ```
+  테스트를 특정 OS 환경에서만 실행해야 한다면 @EnabledOnOs와 @DisabledOnOs를 사용하면 된다.
+  
+- 테스트에 필요한 값만 설정하면 된다.
+    ```
+    // id 값만 세팅하여 id 중복 여부를 테스트한다.
+    RegisterReq req = RegisterReq.builder()
+        .id("id")
+        .build();
+    ```
+
+- 단위 테스트에서 상황 구성을 위해 필요한 데이터가 복잡한 경우가 있다. 이 때 객체 생성 클래스를 따로 만들어 복잡함을 줄일 수 있다.
+
+- 테스트는 성공하거나 실패해야 한다. 단언을 실행하지 않고 넘어가면 안 된다.
+
+- 필요하지 않은 범위까지 연동하지 않는다.
+    - @JdbcTest를 사용하면 디비 연동과 관련된 설정만 초기화한다.
